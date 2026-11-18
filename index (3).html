@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calcula Serviço</title>
+<meta name="description" content="Calculadora de orçamento para prestadores de serviço, com PDF e envio pelo WhatsApp.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+  /* Layout: ficha de ordem de serviço, uma coluna, passos numerados na ordem real de preenchimento. */
+  :root {
+    --bg: #e9edf1;
+    --surface: #ffffff;
+    --ink: #17222d;
+    --muted: #566574;
+    --line: #cdd6de;
+    --field: #f6f8fa;
+    --accent: #d9480f;
+    --on-accent: #ffffff;
+    --band: #1f3b57;
+    --on-band: #ffffff;
+    --wa: #128c4a;
+    --on-wa: #ffffff;
+    --bad: #b42318;
+    color-scheme: light;
+    --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10171d; --surface: #19232c; --ink: #e8eef3; --muted: #9aaab8; --line: #2b3a47;
+      --field: #111a21; --accent: #ff8a4c; --on-accent: #1b0f06; --band: #0b1116; --on-band: #eef3f7;
+      --wa: #25d366; --on-wa: #06260f; --bad: #ff8a80;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10171d; --surface: #19232c; --ink: #e8eef3; --muted: #9aaab8; --line: #2b3a47;
+    --field: #111a21; --accent: #ff8a4c; --on-accent: #1b0f06; --band: #0b1116; --on-band: #eef3f7;
+    --wa: #25d366; --on-wa: #06260f; --bad: #ff8a80;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.45;
+    padding-bottom: 40px;
+  }
+  .in {
+    max-width: 720px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .top { background: var(--band); color: var(--on-band); }
+  .top .in { padding-block: 22px 20px; }
+  .top h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 2.3rem;
+    line-height: 1;
+    letter-spacing: .01em;
+    text-transform: uppercase;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .top p { margin: 0; opacity: .82; font-size: 1rem; }
+  .stripe {
+    height: 9px;
+    background: repeating-linear-gradient(-45deg, var(--accent) 0 12px, #1b2430 12px 24px);
+  }
+
+  main { display: grid; gap: 16px; padding-top: 18px; }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 16px 20px;
+    min-width: 0;
+  }
+  .step-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .step-head .n {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 2.2rem;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .step-head h2 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.55rem;
+    line-height: 1.05;
+    text-transform: uppercase;
+    letter-spacing: .015em;
+    margin: 0;
+  }
+  .step-head .opt {
+    margin-left: auto;
+    font-size: .85rem;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .help { margin: 0 0 14px; color: var(--muted); font-size: .95rem; }
+
+  .fields { display: grid; gap: 14px; }
+  .field { display: grid; gap: 6px; min-width: 0; }
+  .field > span.lab { font-weight: 600; font-size: .98rem; }
+  .field small { color: var(--muted); font-size: .88rem; }
+
+  input[type="text"], input[type="tel"], textarea {
+    width: 100%;
+    min-height: 50px;
+    font: inherit;
+    font-size: 16px;
+    color: var(--ink);
+    background: var(--field);
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  textarea { min-height: 92px; resize: vertical; }
+  input::placeholder, textarea::placeholder { color: var(--muted); opacity: .7; }
+  input:focus-visible, textarea:focus-visible, button:focus-visible, a.btn:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .affix { position: relative; }
+  .affix .pre, .affix .suf {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-weight: 600; pointer-events: none;
+  }
+  .affix .pre { left: 12px; }
+  .affix .suf { right: 12px; }
+  .affix.l input { padding-left: 42px; }
+  .affix.r input { padding-right: 64px; }
+
+  .hora {
+    display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    background: var(--field); border: 1px dashed var(--line); border-radius: 6px;
+    padding: 9px 12px; font-size: .95rem; color: var(--muted);
+  }
+  .hora strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .link-btn {
+    justify-self: start;
+    background: none; border: 0; padding: 4px 0;
+    font: inherit; font-size: .9rem; color: var(--muted);
+    text-decoration: underline; cursor: pointer;
+  }
+
+  /* Tabela de materiais */
+  .mtable { display: grid; gap: 0; }
+  .mhead, .mrow {
+    display: grid;
+    grid-template-columns: 4.4rem minmax(0, 1fr) 6.6rem 6.2rem 2.5rem;
+    grid-template-areas: "qty item price total rm";
+    gap: 8px;
+    align-items: center;
+  }
+  .mhead {
+    padding: 0 0 8px;
+    border-bottom: 2px solid var(--ink);
+    font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  }
+  .mhead .h-qty { grid-area: qty; }
+  .mhead .h-item { grid-area: item; }
+  .mhead .h-price { grid-area: price; text-align: right; }
+  .mhead .h-total { grid-area: total; text-align: right; }
+  .mrow { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .mrow .cell { display: grid; gap: 4px; min-width: 0; }
+  .mrow .qty { grid-area: qty; }
+  .mrow .item { grid-area: item; }
+  .mrow .price { grid-area: price; }
+  .mrow .total { grid-area: total; text-align: right; }
+  .mrow .rm { grid-area: rm; }
+  .mrow .lbl { display: none; font-size: .8rem; font-weight: 600; color: var(--muted); }
+  .mrow input { min-height: 46px; padding: 8px 10px; }
+  .mrow .price input, .mrow .qty input { text-align: right; }
+  .mrow output {
+    font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1rem; padding-right: 2px; overflow-wrap: anywhere;
+  }
+  .rm {
+    width: 40px; height: 40px; border-radius: 6px; border: 1.5px solid var(--line);
+    background: transparent; color: var(--muted); font-size: 1.3rem; line-height: 1; cursor: pointer;
+  }
+  .rm:hover { color: var(--bad); border-color: var(--bad); }
+
+  .add {
+    margin-top: 14px;
+    min-height: 50px; width: 100%;
+    background: transparent; color: var(--ink);
+    border: 2px dashed var(--muted); border-radius: 8px;
+    font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .add:hover { border-color: var(--accent); color: var(--accent); }
+
+  @media (max-width: 560px) {
+    .mhead { display: none; }
+    .mrow {
+      grid-template-columns: 4.2rem minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
+      grid-template-areas:
+        "item item item rm"
+        "qty price total total";
+      row-gap: 8px;
+      padding: 14px 0;
+    }
+    .mrow .lbl { display: block; }
+    .mrow .total { text-align: left; align-self: end; padding-bottom: 12px; }
+    .mrow .rm { align-self: end; }
+  }
+
+  /* Resumo */
+  .sum { display: grid; gap: 8px; margin-bottom: 16px; }
+  .sum .line {
+    display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+    font-variant-numeric: tabular-nums;
+  }
+  .sum .line span:first-child { color: var(--muted); }
+  .sum .line strong { font-weight: 600; }
+  .sum .grand {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    border-top: 2px solid var(--ink); margin-top: 6px; padding-top: 12px;
+  }
+  .sum .grand span:first-child {
+    font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; text-transform: uppercase;
+  }
+  .sum .grand output {
+    font-family: var(--font-display); font-weight: 700; font-size: 2.8rem; line-height: 1;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+  }
+  .falta {
+    margin: 0 0 14px; padding: 10px 12px; border-radius: 6px;
+    background: var(--field); border: 1px dashed var(--bad); color: var(--ink); font-size: .95rem;
+  }
+  .actions { display: grid; gap: 10px; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 56px; border-radius: 8px; border: 0;
+    font: inherit; font-weight: 600; font-size: 1.05rem; text-decoration: none; cursor: pointer; text-align: center;
+    padding: 10px 16px;
+  }
+  .btn.pdf { background: var(--accent); color: var(--on-accent); }
+  .btn.wa { background: var(--wa); color: var(--on-wa); }
+  .btn[disabled], .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+  #msg { min-height: 1.4em; margin: 12px 0 0; font-size: .95rem; color: var(--muted); }
+  #msg.err { color: var(--bad); }
+  .note { margin: 4px 0 0; font-size: .88rem; color: var(--muted); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .btn, .add, .rm { transition: opacity .15s, border-color .15s, color .15s; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="in">
+    <h1>Calcula Serviço</h1>
+    <p>Monte o orçamento do seu trabalho em poucos passos.</p>
+  </div>
+</header>
+<div class="stripe" aria-hidden="true"></div>
+
+<div class="in">
+  <main>
+    <section class="step" aria-labelledby="t1">
+      <div class="step-head"><span class="n">1</span><h2 id="t1">Seus dados</h2></div>
+      <div class="fields">
+        <label class="field" for="nome">
+          <span class="lab">Seu nome</span>
+          <input id="nome" type="text" autocomplete="name" placeholder="Ex.: João da Silva">
+        </label>
+        <label class="field" for="tel">
+          <span class="lab">Seu telefone (com DDD)</span>
+          <input id="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="(85) 99999-9999">
+        </label>
+        <label class="field" for="diaria">
+          <span class="lab">Quanto você cobra por uma diária?</span>
+          <span class="affix l"><span class="pre">R$</span><input id="diaria" type="text" inputmode="decimal" placeholder="0,00"></span>
+          <small>Uma diária é um dia de trabalho de 8 horas.</small>
+        </label>
+        <div class="hora" aria-live="polite"><span>Valor da sua hora de trabalho</span><strong id="hora">R$ 0,00</strong></div>
+        <button type="button" class="link-btn" id="limpar">Apagar meus dados salvos neste aparelho</button>
+        <p class="note" style="margin:0">Seu nome, telefone e diária ficam salvos neste aparelho, para você não digitar de novo.</p>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="t2">
+      <div class="step-head"><span class="n">2</span><h2 id="t2">Sobre o trabalho</h2><span class="opt">opcional</span></div>
+      <div class="fields">
+        <label class="field" for="cliente">
+          <span class="lab">Nome do cliente</span>
+          <input id="cliente" type="text" autocomplete="off" placeholder="Ex.: Maria Souza">
+        </label>
+        <label class="field" for="desc">
+          <span class="lab">O que será feito?</span>
+          <textarea id="desc" placeholder="Ex.: Trocar a torneira da cozinha e consertar o vazamento da pia."></textarea>
+        </label>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="t3">
+      <div class="step-head"><span class="n">3</span><h2 id="t3">Materiais</h2><span class="opt">se não usar, deixe em branco</span></div>
+      <p class="help">Coloque o que você vai comprar ou usar. O total de cada linha aparece sozinho.</p>
+      <div class="mtable">
+        <div class="mhead" aria-hidden="true">
+          <span class="h-qty">Qtd.</span><span class="h-item">Item</span><span class="h-price">Preço unit.</span><span class="h-total">Total</span>
+        </div>
+        <div id="rows"></div>
+      </div>
+      <button type="button" class="add" id="add">+ Adicionar outro item</button>
+    </section>
+
+    <section class="step" aria-labelledby="t4">
+      <div class="step-head"><span class="n">4</span><h2 id="t4">Tempo do serviço</h2></div>
+      <label class="field" for="horas">
+        <span class="lab">Quantas horas você acha que vai levar para terminar?</span>
+        <span class="affix r"><input id="horas" type="text" inputmode="decimal" placeholder="Ex.: 3"><span class="suf">horas</span></span>
+        <small>Pode usar meia hora: 2,5 são duas horas e meia.</small>
+      </label>
+    </section>
+
+    <section class="step" aria-labelledby="t5">
+      <div class="step-head"><span class="n">5</span><h2 id="t5">Valor a cobrar</h2></div>
+      <div class="sum" aria-live="polite">
+        <div class="line"><span id="l-labor">Mão de obra</span><strong id="v-labor">R$ 0,00</strong></div>
+        <div class="line"><span>Materiais</span><strong id="v-mat">R$ 0,00</strong></div>
+        <div class="grand"><span>Total</span><output id="v-total">R$ 0,00</output></div>
+      </div>
+      <p class="falta" id="falta" hidden></p>
+      <div class="actions">
+        <button type="button" class="btn pdf" id="pdf">Baixar orçamento em PDF</button>
+        <a class="btn wa" id="wa" href="#" target="_blank" rel="noopener" aria-disabled="true">Enviar pelo WhatsApp</a>
+      </div>
+      <p id="msg" role="status"></p>
+      <p class="note">O botão do WhatsApp envia o resumo em texto. Para mandar o PDF, baixe primeiro e anexe na conversa.</p>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = "calcula-servico:profissional";
+
+  var fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  function brl(n) { return fmt.format(n).replace(/ /g, " "); }
+  function fmtQ(n) { return n.toLocaleString("pt-BR", { maximumFractionDigits: 2 }); }
+  function r2(n) { return Math.round(n * 100) / 100; }
+
+  function num(s) {
+    s = String(s == null ? "" : s).trim().replace(/[^\d.,]/g, "");
+    if (!s) return 0;
+    if (s.indexOf(",") > -1) s = s.replace(/\./g, "").replace(",", ".");
+    else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+    var n = parseFloat(s);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function maskPhone(v) {
+    var d = v.replace(/\D/g, "").slice(0, 11);
+    if (d.length <= 2) return d;
+    if (d.length <= 6) return "(" + d.slice(0, 2) + ") " + d.slice(2);
+    if (d.length <= 10) return "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6);
+    return "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7);
+  }
+
+  /* ---------- armazenamento (só conveniência deste aparelho) ---------- */
+  function loadSaved() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var o = JSON.parse(raw);
+      $("nome").value = o.nome || "";
+      $("tel").value = o.tel || "";
+      $("diaria").value = o.diaria || "";
+    } catch (e) {}
+  }
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        nome: $("nome").value, tel: $("tel").value, diaria: $("diaria").value
+      }));
+    } catch (e) {}
+  }
+
+  /* ---------- linhas de materiais ---------- */
+  var examples = ["Ex.: torneira", "Ex.: cano de PVC", "Ex.: fita veda rosca"];
+  var rowsEl = $("rows");
+
+  function addRow(focus) {
+    var idx = rowsEl.children.length;
+    var r = document.createElement("div");
+    r.className = "mrow";
+    r.innerHTML =
+      '<label class="cell qty"><span class="lbl">Qtd.</span><input class="i-qty" type="text" inputmode="decimal" value="1" aria-label="Quantidade"></label>' +
+      '<label class="cell item"><span class="lbl">Item</span><input class="i-name" type="text" autocomplete="off" placeholder="' + (examples[idx] || "Nome do item") + '" aria-label="Nome do item"></label>' +
+      '<label class="cell price"><span class="lbl">Preço unit. (R$)</span><input class="i-price" type="text" inputmode="decimal" placeholder="0,00" aria-label="Preço unitário em reais"></label>' +
+      '<div class="cell total"><span class="lbl">Total</span><output class="i-total">-</output></div>' +
+      '<button type="button" class="rm" aria-label="Remover este item">×</button>';
+    rowsEl.appendChild(r);
+    if (focus) r.querySelector(".i-name").focus();
+  }
+  function rowQty(r) {
+    var s = r.querySelector(".i-qty").value;
+    return s.trim() === "" ? 1 : num(s);
+  }
+  function readItems() {
+    var out = [];
+    Array.prototype.forEach.call(rowsEl.children, function (r) {
+      var price = num(r.querySelector(".i-price").value);
+      var q = rowQty(r);
+      var name = r.querySelector(".i-name").value.trim();
+      var total = r2(q * price);
+      r.querySelector(".i-total").textContent = (price > 0 && q > 0) ? brl(total) : "-";
+      if (price > 0 && q > 0) out.push({ q: q, name: name || "Item", price: price, total: total });
+    });
+    return out;
+  }
+
+  /* ---------- cálculo ---------- */
+  var state = null;
+
+  function recalc() {
+    var diaria = num($("diaria").value);
+    var horas = num($("horas").value);
+    var hora = diaria / 8;
+    var items = readItems();
+    var mat = r2(items.reduce(function (s, i) { return s + i.total; }, 0));
+    var labor = r2(hora * horas);
+    var total = r2(labor + mat);
+    var nome = $("nome").value.trim();
+
+    $("hora").textContent = brl(r2(hora));
+    $("l-labor").textContent = "Mão de obra" + (horas > 0 ? " (" + fmtQ(horas) + " h)" : "");
+    $("v-labor").textContent = brl(labor);
+    $("v-mat").textContent = brl(mat);
+    $("v-total").textContent = brl(total);
+
+    var falta = [];
+    if (!nome) falta.push("seu nome");
+    if (!(diaria > 0)) falta.push("o valor da diária");
+    if (!(horas > 0)) falta.push("as horas do serviço");
+    var ready = falta.length === 0;
+
+    var f = $("falta");
+    if (ready) { f.hidden = true; }
+    else { f.hidden = false; f.textContent = "Para gerar o orçamento, preencha: " + falta.join(", ") + "."; }
+
+    state = {
+      nome: nome,
+      tel: $("tel").value.trim(),
+      cliente: $("cliente").value.trim(),
+      desc: $("desc").value.trim(),
+      items: items, horas: horas, labor: labor, mat: mat, total: total,
+      date: new Date().toLocaleDateString("pt-BR"),
+      ready: ready
+    };
+
+    updateButtons();
+  }
+
+  function waText(d) {
+    var L = [];
+    L.push("*Orçamento* - " + d.date);
+    L.push("Profissional: " + d.nome + (d.tel ? " - " + d.tel : ""));
+    if (d.cliente) L.push("Cliente: " + d.cliente);
+    if (d.desc) { L.push(""); L.push("Serviço: " + d.desc); }
+    if (d.items.length) {
+      L.push(""); L.push("*Materiais*");
+      d.items.forEach(function (i) { L.push(fmtQ(i.q) + "x " + i.name + " - " + brl(i.total)); });
+    }
+    L.push("");
+    L.push("Mão de obra (" + fmtQ(d.horas) + " h): " + brl(d.labor));
+    if (d.items.length) L.push("Materiais: " + brl(d.mat));
+    L.push("*Total: " + brl(d.total) + "*");
+    return L.join("\n");
+  }
+
+  var downloads = true;
+  function updateButtons() {
+    var wa = $("wa"), pdf = $("pdf");
+    if (state && state.ready) {
+      wa.href = "https://wa.me/?text=" + encodeURIComponent(waText(state));
+      wa.setAttribute("aria-disabled", "false");
+    } else {
+      wa.href = "#";
+      wa.setAttribute("aria-disabled", "true");
+    }
+    pdf.disabled = !(state && state.ready) || downloads === null;
+  }
+
+  /* ---------- PDF ---------- */
+  function buildPdf(d) {
+    var doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+    var W = 210, M = 18, R = W - M, y;
+    var NAVY = [31, 59, 87], ORG = [217, 72, 15], INK = [23, 34, 45], MUT = [96, 110, 124], LINE = [205, 214, 222];
+
+    doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]); doc.rect(0, 0, W, 32, "F");
+    doc.setFillColor(ORG[0], ORG[1], ORG[2]); doc.rect(0, 32, W, 2, "F");
+    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(22);
+    doc.text("ORÇAMENTO", M, 20);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    doc.text(d.date, R, 20, { align: "right" });
+    y = 46;
+
+    function need(h) { if (y + h > 280) { doc.addPage(); y = 20; } }
+    function label(t) {
+      need(10);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(MUT[0], MUT[1], MUT[2]);
+      doc.text(t, M, y); y += 5.5;
+    }
+    function para(t, size, bold, lh) {
+      doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size);
+      doc.setTextColor(INK[0], INK[1], INK[2]);
+      doc.splitTextToSize(t, R - M).forEach(function (l) { need(lh); doc.text(l, M, y); y += lh; });
+    }
+
+    label("PROFISSIONAL");
+    para(d.nome, 13, true, 6);
+    if (d.tel) para(d.tel, 10.5, false, 6);
+    y += 5;
+
+    if (d.cliente) { label("CLIENTE"); para(d.cliente, 12, true, 6); y += 5; }
+    if (d.desc) { label("SERVIÇO"); para(d.desc, 10.5, false, 5.2); y += 5; }
+
+    if (d.items.length) {
+      need(30);
+      label("MATERIAIS");
+      doc.setFillColor(238, 242, 246); doc.rect(M, y - 4, R - M, 7, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(MUT[0], MUT[1], MUT[2]);
+      doc.text("QTD.", M + 2, y + 0.6);
+      doc.text("ITEM", M + 20, y + 0.6);
+      doc.text("PREÇO UNIT.", R - 34, y + 0.6, { align: "right" });
+      doc.text("TOTAL", R - 2, y + 0.6, { align: "right" });
+      y += 8;
+      d.items.forEach(function (it) {
+        var lines = doc.splitTextToSize(it.name, 88);
+        need(lines.length * 5 + 6);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(INK[0], INK[1], INK[2]);
+        doc.text(fmtQ(it.q), M + 2, y);
+        doc.text(lines, M + 20, y);
+        doc.text(brl(it.price), R - 34, y, { align: "right" });
+        doc.text(brl(it.total), R - 2, y, { align: "right" });
+        y += lines.length * 5 + 1;
+        doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.line(M, y, R, y);
+        y += 4.5;
+      });
+      y += 3;
+    }
+
+    need(44);
+    function row(a, b) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(INK[0], INK[1], INK[2]);
+      doc.text(a, M, y); doc.text(b, R, y, { align: "right" }); y += 7;
+    }
+    row("Mão de obra (" + fmtQ(d.horas) + " h)", brl(d.labor));
+    if (d.items.length) row("Materiais", brl(d.mat));
+    y += 2;
+    doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]); doc.rect(M, y, R - M, 14, "F");
+    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold");
+    doc.setFontSize(12); doc.text("TOTAL", M + 5, y + 9);
+    doc.setFontSize(15); doc.text(brl(d.total), R - 5, y + 9.3, { align: "right" });
+    return doc;
+  }
+
+  function slug(s) {
+    return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "orcamento";
+  }
+  function setMsg(t, err) { var m = $("msg"); m.textContent = t; m.className = err ? "err" : ""; }
+
+  async function onPdf() {
+    if (!state || !state.ready) return;
+    setMsg("");
+    if (!(window.jspdf && window.jspdf.jsPDF)) { setMsg("Não foi possível preparar o PDF agora. Verifique a internet e abra a página de novo.", true); return; }
+    try {
+      var doc = buildPdf(state);
+      var d = new Date();
+      var stamp = d.getFullYear() + ("0" + (d.getMonth() + 1)).slice(-2) + ("0" + d.getDate()).slice(-2);
+      var name = "orcamento-" + slug(state.cliente || state.nome) + "-" + stamp + ".pdf";
+      doc.save(name);
+      setMsg("PDF baixado. Agora é só anexar na conversa do WhatsApp.");
+    } catch (e) {
+      setMsg("Não foi possível salvar o PDF. Tente de novo.", true);
+    }
+  }
+
+  /* ---------- eventos ---------- */
+  document.addEventListener("input", function (e) {
+    var t = e.target;
+    if (t.id === "tel") t.value = maskPhone(t.value);
+    if (t.id === "nome" || t.id === "tel" || t.id === "diaria") save();
+    if (t.matches && t.matches("input, textarea")) { setMsg(""); recalc(); }
+  });
+  rowsEl.addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest(".rm") : null;
+    if (!b) return;
+    var r = b.parentNode;
+    if (rowsEl.children.length > 1) { rowsEl.removeChild(r); }
+    else {
+      r.querySelector(".i-qty").value = "1";
+      r.querySelector(".i-name").value = "";
+      r.querySelector(".i-price").value = "";
+    }
+    recalc();
+  });
+  $("add").addEventListener("click", function () { addRow(true); recalc(); });
+  $("pdf").addEventListener("click", onPdf);
+  $("wa").addEventListener("click", function (e) {
+    if (this.getAttribute("aria-disabled") === "true") { e.preventDefault(); }
+  });
+  $("limpar").addEventListener("click", function () {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    $("nome").value = ""; $("tel").value = ""; $("diaria").value = "";
+    setMsg("Dados apagados deste aparelho.");
+    recalc();
+  });
+
+  /* ---------- início ---------- */
+  loadSaved();
+  for (var i = 0; i < 3; i++) addRow(false);
+  recalc();
+
+})();
+</script>
+</body>
+</html>
